@@ -105,10 +105,91 @@ def run_agent(query: str, wardrobe: dict) -> dict:
       • A handler for ModelUnavailable, so a bad key produces a message rather
         than a stack trace. The import is already at the top of this file.
     """
-    session = new_session(query, wardrobe)
+    import re
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    session = new_session(query, wardrobe)
+    iterations = 0
+
+    # 1. iteration check
+    iterations += 1
+    trace.check_iterations(iterations)
+
+    # 2. query parsing
+    text = query.strip()
+
+    # parse price ceiling e.g. "under $30", "under 30", "< $30", "$30"
+    max_price = None
+    price_match = re.search(r'(?:under|<|max|below)\s*\$?\s*(\d+(?:\.\d+)?)|(?:\$)\s*(\d+(?:\.\d+)?)', text, re.I)
+    if price_match:
+        val = price_match.group(1) or price_match.group(2)
+        if val:
+            max_price = float(val)
+
+    # parse size e.g. "size M", "size: 8", "in size S/M"
+    size = None
+    size_match = re.search(r'\bsize\s*[:=]?\s*([A-Za-z0-9/]+(?:\s+(?:[0-9]+|oversized|adjustable))?)', text, re.I)
+    if size_match:
+        size = size_match.group(1).strip()
+
+    # extract description by stripping matched size/price phrases and fillers
+    cleaned_desc = text
+    if price_match:
+        cleaned_desc = cleaned_desc.replace(price_match.group(0), " ")
+    if size_match:
+        cleaned_desc = cleaned_desc.replace(size_match.group(0), " ")
+    
+    # remove common stop words / query filler
+    fillers = ["looking for", "find me", "a ", "an ", "in ", "with ", "under", "for "]
+    for f in fillers:
+        cleaned_desc = re.sub(rf'\b{re.escape(f.strip())}\b', ' ', cleaned_desc, flags=re.I)
+    cleaned_desc = " ".join(cleaned_desc.split())
+
+    session["parsed"] = {
+        "description": cleaned_desc or text,
+        "size": size,
+        "max_price": max_price,
+    }
+
+    # 3. search listings
+    results = search_listings(
+        description=session["parsed"]["description"],
+        size=session["parsed"]["size"],
+        max_price=session["parsed"]["max_price"],
+    )
+    session["search_results"] = results
+
+    # 4. the branch
+    if not results:
+        filters_used = []
+        if max_price is not None:
+            filters_used.append(f"raising your price ceiling above ${max_price:.2f}")
+        if size:
+            filters_used.append(f"widening your size filter beyond '{size}'")
+        filters_used.append(f"using broader keywords than '{session['parsed']['description']}'")
+        suggestion = " or ".join(filters_used)
+        session["error"] = f"No thrift listings matched your request. Try {suggestion}."
+        return session
+
+    # 5. choose item (first result)
+    selected = results[0]
+    session["selected_item"] = selected
+
+    # 6. suggest outfit
+    try:
+        outfit = suggest_outfit(selected, wardrobe)
+        session["outfit_suggestion"] = outfit
+    except ModelUnavailable as e:
+        session["error"] = str(e)
+        return session
+
+    # 7. create fit card
+    try:
+        fit_card = create_fit_card(outfit, selected)
+        session["fit_card"] = fit_card
+    except ModelUnavailable as e:
+        session["error"] = str(e)
+        return session
+
     return session
 
 
