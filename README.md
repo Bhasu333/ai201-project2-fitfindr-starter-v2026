@@ -47,59 +47,38 @@
 
 ## Tool Inventory
 
-<!-- Four lines per tool. This is worth 2 points and it's the single most
-     common place students lose them.
-
-     "Returns a list" earns NOTHING. The description has to say what is IN
-     the list.
-
-     The empty case isn't optional either — it's the thing your loop branches
-     on, and if you don't decide it here you'll discover it as a crash in
-     Milestone 5. -->
-
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Searches local listings from `listings.json` filtering by max price and size, scoring and sorting matches by keyword overlap against description.
+- **Inputs:** `description` (str), `size` (str or None), `max_price` (float or None)
+- **Returns:** A list of matching listing dicts (each containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, `platform`), sorted highest score first up to `SEARCH_RESULT_LIMIT`.
+- **When it has nothing:** An empty list `[]`.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Takes a thrifted listing dict and the user's wardrobe dict and calls the model to generate one or two outfit pairings.
+- **Inputs:** `new_item` (dict), `wardrobe` (dict with an `'items'` key holding a list of wardrobe item dicts)
+- **Returns:** A non-empty string containing outfit recommendations combining the thrifted item with existing wardrobe pieces.
+- **When it has nothing:** If the wardrobe is empty (`items == []`), returns general styling advice for the item rather than failing or returning `""`.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Generates a 2-4 sentence social caption for the find mentioning item title, price, platform, and vibe.
+- **Inputs:** `outfit` (str), `new_item` (dict)
+- **Returns:** A 2-4 sentence string caption formatted for a social post.
+- **When it has nothing:** If `outfit` is empty or whitespace, returns a fallback caption describing the item, price, and platform with a note that no styling pairing was supplied.
 
 ---
 
 ## Planning Loop
 
-<!-- Your branch rule, stated as a rule — the condition AND both paths — plus
-     the file and function that holds it.
-
-     Like this:
-       "If search_listings returns an empty list, put a message in the session
-        and stop. Otherwise take the first result and go to suggest_outfit."
-        — agent.py::run_agent
-
-     The grader checks your code against what you claim here, so the file and
-     function have to be real. -->
-
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, put a helpful message in `session["error"]` specifying what filters or keywords to change and stop before calling `suggest_outfit`. Otherwise, save the first search result to `session["selected_item"]` and continue to `suggest_outfit`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** regex and string parsing to pull price after `under $...`, size after `size ...`, and the remaining text as the description keywords.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `query` -> `parsed` -> `search_results` -> (if matches found) `selected_item` -> `outfit_suggestion` -> `fit_card` (or `error` if no matches or loop ends early).
 
 ---
 
