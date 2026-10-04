@@ -39,7 +39,7 @@
 
 ## What This Does
 
-<!-- Three or four sentences: what a user asks for, and what they get back. -->
+FitFindr is an AI thrifting assistant that helps users discover secondhand clothes, style them with pieces they already own, and craft social posts about their finds. A user enters a plain query like "vintage graphic tee under $30, size M", and the agent parses their filters, searches a local database of secondhand listings, and selects the best match. From there, it references the user's wardrobe to suggest realistic outfit pairings and writes an authentic 2-4 sentence caption showing off the find, price, and platform. If a search yields zero matches, the agent cleanly stops before calling generation tools and provides clear guidance on which filters to loosen.
 
 
 
@@ -92,49 +92,51 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
+=== Searching for: vintage graphic tee under $30 ===
+Selected item: lst_002 — Y2K Baby Tee — Butterfly Print ($18.00 on depop)
 
+Outfit suggestions:
+Pair this baby tee with high-waisted baggy denim or the dark wash jeans in your wardrobe. Add chunky brown knitwear over top for cooler evenings and finish with clean white sneakers.
+
+Fit Card:
+Found this Y2K Baby Tee with butterfly graphic on depop for just $18.00! Loving the subtle retro vibes, especially styled with dark wash denim.
+
+2 model calls this session
 ```
 
 **The three tools, tested one at a time**
 
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-
+$ python -c "from tools import search_listings; print([item['title'] for item in search_listings('graphic tee', max_price=30)])"
+['Y2K Baby Tee — Butterfly Print', 'Graphic Tee — 2003 Tour Bootleg Style']
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
-
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+Pair these vintage Levi's 501 jeans with your oversized white button-down and black leather loafers for a relaxed yet put-together daily look.
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
-
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Scored these classic Vintage Levi's 501 Jeans on depop for only $38.00! The medium wash is timeless and goes effortlessly with a fresh pair of sneakers.
 ```
 
 ---
 
 ## How I Used AI
 
-<!-- Two specific moments. What you asked, what came back, what you changed.
-
-     "I used Claude to help me code" is not enough.
-
-     "I gave Claude my search_listings spec. It returned None on no match
-     instead of an empty list, so I changed it" is the level we want. -->
-
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked an AI model to write the regex pattern to parse size and maximum price out of plain text queries like "vintage graphic tee under $30, size M".
+- *What came back:* The model gave me `re.search(r'\bsize\s+([A-Za-z0-9]+)', text)` and `re.search(r'\$(\d+)', text)`.
+- *What I changed:* The regex failed on compound sizes like "S/M" or "XL (oversized)" that appear in the listings data, and broke when queries wrote "under 30" without a dollar sign. I updated the size regex to support slashes and descriptors (`[A-Za-z0-9/]+(?:\s+(?:[0-9]+|oversized|adjustable))?`) and made the dollar sign optional following keywords like "under" or "below".
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked for advice on handling the empty wardrobe edge case in `suggest_outfit`.
+- *What came back:* It suggested returning `None` or raising a `ValueError("Wardrobe is empty")` so the caller could handle it.
+- *What I changed:* Raising an error or returning `None` would crash the planning loop and violate the spec, which requires a non-empty string with general styling advice. I changed it to detect `if not items:` and branch into a general styling prompt so the model returns versatile wardrobe staples to pair with the item.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
