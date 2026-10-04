@@ -25,9 +25,7 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+Keyword search can occasionally mismatch or model calls might hiccup, but with clear queries it should complete reliably. 4 of 5 gives room for one flaky model generation or edge case while still demanding high reliability on the happy path.
 
 ---
 
@@ -37,64 +35,34 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+This is pure deterministic code in the planning loop. When `search_listings` returns an empty list, the branch condition should trigger every single time without exception.
 
 ---
 
-## 3. Something about state
+## 3. Selected item in session matches item passed to suggest_outfit
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+Across 5 separate runs of matching queries, the `id` of `session["selected_item"]` exactly equals the `id` of the item passed into `suggest_outfit` and `create_fit_card` — 5 of 5 tries.
 
 **Why this target:**
-
-
+State passing through the session dictionary is deterministic application logic. If state drops or gets replaced by another item between tool calls, that's a code bug in our state flow, so it should pass 5 of 5 times.
 
 ---
 
-## 4. Something about the fit card
+## 4. Fit card mentions the price of the selected item
 
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
+For matching queries that return a fit card, the text in `session["fit_card"]` includes the exact price or dollar amount of `session["selected_item"]` (e.g. "$18" or "$18.00") — in at least 4 of 5 tries.
 
 **Why this target:**
-
-
+Fit cards are meant to be social posts sharing a thrift find, so price is a core detail. Because LLM outputs vary by temperature, the model might occasionally rephrase or omit the dollar sign, so 4 of 5 accounts for slight prompt adherence variance.
 
 ---
 
-## 5. Your choice
+## 5. Empty wardrobe returns styling advice without crashing
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+Given a matching query and an empty wardrobe (`wardrobe["items"] == []`), the agent completes all three tools and returns a non-empty `session["fit_card"]` — in at least 4 of 5 tries.
 
 **Why this target:**
+New users starting out with an empty wardrobe shouldn't crash the agent. The tool should handle the empty items list by providing general styling ideas, with 4 of 5 accounting for any generation hiccups.
 
 
 
